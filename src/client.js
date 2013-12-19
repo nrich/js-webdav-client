@@ -39,6 +39,13 @@ nl.sara.webdav.Client = function(host, useHTTPS, port) {
     'writable': true
   });
 
+  Object.defineProperty(this, '_authString', {
+    'value': null,
+    'enumerable': false,
+    'configurable': false,
+    'writable': true
+  });
+
   // Constructor logic
   if (host !== undefined) {
     var protocol = (useHTTPS === true) ? 'https' : 'http';
@@ -162,11 +169,13 @@ nl.sara.webdav.Client.prototype.propfind = function(path, callback, depth, props
       propsBody.documentElement.appendChild(propertyBody);
     break;
   }
+
+
   var serializer = new XMLSerializer();
   var body = '<?xml version="1.0" encoding="utf-8" ?>' + serializer.serializeToString(propsBody);
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("PROPFIND", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("PROPFIND", url, callback, headers, this._authString);
   ajax.setRequestHeader('Depth', depthHeader);
   ajax.setRequestHeader('Content-Type', 'application/xml; charset="utf-8"');
   ajax.send(body);
@@ -240,7 +249,7 @@ nl.sara.webdav.Client.prototype.proppatch = function(path, callback, setProps, d
   var body = '<?xml version="1.0" encoding="utf-8" ?>' + serializer.serializeToString(propsBody);
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("PROPPATCH", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("PROPPATCH", url, callback, headers, this._authString);
   ajax.setRequestHeader('Content-Type', 'application/xml; charset="utf-8"');
   ajax.send(body);
 
@@ -269,7 +278,7 @@ nl.sara.webdav.Client.prototype.mkcol = function(path, callback, body, contentty
   var url = this.getUrl(path);
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("MKCOL", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("MKCOL", url, callback, headers, this._authString);
   if (body !== undefined) {
     if (contenttype !== undefined) {
       ajax.setRequestHeader('Content-Type', contenttype);
@@ -306,7 +315,7 @@ nl.sara.webdav.Client.prototype.remove = function(path, callback, headers) {
   var url = this.getUrl(path);
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("DELETE", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("DELETE", url, callback, headers, this._authString);
   ajax.send();
 
   return this;
@@ -320,7 +329,7 @@ nl.sara.webdav.Client.prototype.remove = function(path, callback, headers) {
  * @param    {Array}                     headers   Optional; Additional headers to set
  * @returns  {nl.sara.webdav.Client}               The client itself for chaining methods
  */
-nl.sara.webdav.Client.prototype.get = function(path, callback, headers) {
+nl.sara.webdav.Client.prototype.get = function(path, callback, headers, responseType) {
   if ((path === undefined) || (callback === undefined)) {
     throw new nl.sara.webdav.Exception('GET requires the parameters path and callback', nl.sara.webdav.Exception.MISSING_REQUIRED_PARAMETER);
   }
@@ -333,7 +342,7 @@ nl.sara.webdav.Client.prototype.get = function(path, callback, headers) {
 
   // And then send the request
   var ajax = null;
-  ajax = nl.sara.webdav.Client.getAjax("GET", url, callback, headers);
+  ajax = nl.sara.webdav.Client.getAjax("GET", url, callback, headers, this._authString, responseType);
   ajax.send();
 
   return this;
@@ -360,7 +369,7 @@ nl.sara.webdav.Client.prototype.head = function(path, callback, headers) {
 
   // And then send the request
   var ajax = null;
-  ajax = nl.sara.webdav.Client.getAjax("HEAD", url, callback, headers);
+  ajax = nl.sara.webdav.Client.getAjax("HEAD", url, callback, headers, this._authString);
   ajax.send();
 
   return this;
@@ -389,7 +398,7 @@ nl.sara.webdav.Client.prototype.put = function(path, callback, body, contenttype
 
   // And then send the request
   var ajax = null;
-  ajax = nl.sara.webdav.Client.getAjax("PUT", url, callback, headers);
+  ajax = nl.sara.webdav.Client.getAjax("PUT", url, callback, headers, this._authString);
   if (contenttype !== undefined) {
     ajax.setRequestHeader('Content-Type', contenttype);
   }
@@ -421,7 +430,7 @@ nl.sara.webdav.Client.prototype.post = function(path, callback, body, contenttyp
 
   // And then send the request
   var ajax = null;
-  ajax = nl.sara.webdav.Client.getAjax("POST", url, callback, headers);
+  ajax = nl.sara.webdav.Client.getAjax("POST", url, callback, headers, this._authString);
   if ( body !== undefined ) {
     if (contenttype !== undefined) {
       ajax.setRequestHeader('Content-Type', contenttype);
@@ -464,7 +473,7 @@ nl.sara.webdav.Client.prototype.copy = function(path, callback, destination, ove
   } // Else I assume it is a complete URL already
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("COPY", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("COPY", url, callback, headers, this._authString);
   ajax.setRequestHeader('Destination', destination);
   if (depth !== undefined) {
     if ((depth !== 0) && (depth !== 'infinity')) {
@@ -507,7 +516,7 @@ nl.sara.webdav.Client.prototype.move = function(path, callback, destination, ove
   } // Else I assume it is a complete URL already
 
   // And then send the request
-  var ajax = nl.sara.webdav.Client.getAjax("MOVE", url, callback, headers);
+  var ajax = nl.sara.webdav.Client.getAjax("MOVE", url, callback, headers, this._authString);
   ajax.setRequestHeader('Destination', destination);
   if (overwriteMode === nl.sara.webdav.Client.FAIL_ON_OVERWRITE) {
     ajax.setRequestHeader('Overwrite', 'F');
@@ -555,15 +564,18 @@ nl.sara.webdav.Client.prototype.unlock = function(path, callback, headers) {
  * @param    {Array}                          headers   Additional headers to set
  * @returns  {XMLHttpRequest}                           A prepared XMLHttpRequest
  */
-nl.sara.webdav.Client.getAjax = function(method, url, callback, headers) {
+nl.sara.webdav.Client.getAjax = function(method, url, callback, headers, authstr, responseType) {
   var /** @type XMLHttpRequest */ ajax = new XMLHttpRequest();
   ajax.open(method, url, true);
+  ajax.responseType = responseType||'';
+
   ajax.onreadystatechange = function() {
     nl.sara.webdav.Client.ajaxHandler( ajax, callback );
   };
   for (var header in headers) {
     ajax.setRequestHeader(header, headers[header]);
   }
+  ajax.setRequestHeader('Authorization', authstr);
   return ajax;
 };
 
@@ -577,7 +589,9 @@ nl.sara.webdav.Client.getAjax = function(method, url, callback, headers) {
  */
 nl.sara.webdav.Client.ajaxHandler = function(ajax, callback) {
   if (ajax.readyState === 4){ //if request has completed
-    var body = ajax.responseText;
+
+    var body = ajax.response;
+
     if (ajax.status === 207) {
       // Parse the response to a Multistatus object
       for (var counter = 0; counter < ajax.responseXML.childNodes.length; counter++) {
